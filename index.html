@@ -10,14 +10,16 @@
   --math:#2F5BEA; --eng:#12867A; --phy:#7A4FD6; --sent:#D9822B;
 }
 @media (prefers-color-scheme:dark){
-  :root{ --bg:#14181F; --card:#1D232C; --ink:#E9EDF3; --sub:#8D97A6; --line:#2B3340;
+  :root:not([data-theme="light"]){ --bg:#14181F; --card:#1D232C; --ink:#E9EDF3; --sub:#8D97A6; --line:#2B3340;
     --math:#7C9BFF; --eng:#4FC3B3; --phy:#B08CFF; --sent:#F0A860; }
 }
+:root[data-theme="dark"]{ --bg:#14181F; --card:#1D232C; --ink:#E9EDF3; --sub:#8D97A6; --line:#2B3340;
+  --math:#7C9BFF; --eng:#4FC3B3; --phy:#B08CFF; --sent:#F0A860; }
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--ink);
+html,body{margin:0;background:var(--bg);color:var(--ink);touch-action:manipulation;
   font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",system-ui,sans-serif}
 body{min-height:100vh;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
-button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;padding:0}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;padding:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
 button:focus-visible{outline:2px solid var(--math);outline-offset:3px;border-radius:6px}
 .wrap{max-width:560px;margin:0 auto;padding:12px 16px 48px}
 
