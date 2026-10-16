@@ -107,6 +107,7 @@ const START = "2026-10-15";   // 1日目 (YYYY-MM-DD)
 
 // segments: 順番にこなす教材。total は総量。
 // days: 全体を何日で一周するか(量を均等割り) / perDay: 1日の固定量(余りは最終日)
+// start: そのタスクの開始日(省略時はSTART) / skip: 開始時点で終わっている量
 const TASKS = [
   { name:"数学", color:"--math", days:60,
     segments:[
@@ -115,8 +116,8 @@ const TASKS = [
       { label:"数III", total:719, unit:"ページ" } ] },
   { name:"英文法", color:"--eng", days:30,
     segments:[ { label:"英文法", total:219, unit:"ページ" } ] },
-  { name:"物理フレーム", color:"--phy", perDay:3,
-    segments:[ { label:"物理 開放フレーム", total:19, unit:"" } ] },
+  { name:"最短物理", color:"--phy", days:15, start:"2026-10-17", skip:22,
+    segments:[ { label:"最短物理", total:244, unit:"ページ" } ] },
   { name:"英文英単語Z", color:"--sent", perDay:3,
     segments:[ { label:"英文英単語Z", total:70, unit:"", extra:"＋ 付随する英単語" } ] }
 ];
@@ -131,15 +132,21 @@ const stripTime = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const same = (a,b) => utc(a) === utc(b);
 
 const total = t => t.segments.reduce((a,s)=>a+s.total,0);
-const daysOf = t => t.perDay ? Math.ceil(total(t)/t.perDay) : t.days;
-const lastDay = Math.max(...TASKS.map(daysOf));
+const skipOf = t => t.skip || 0;
+const remain = t => total(t) - skipOf(t);
+const daysOf = t => t.perDay ? Math.ceil(remain(t)/t.perDay) : t.days;
+const offOf = t => { if (!t.start) return 0; const [y,m,d] = t.start.split("-").map(Number); return Math.round((Date.UTC(y,m-1,d) - Date.UTC(SY,SM-1,SD))/864e5); };
+const endOf = t => offOf(t) + daysOf(t);
+const lastDay = Math.max(...TASKS.map(endOf));
 
 function span(t, d){
-  const T = total(t), n = daysOf(t);
+  const T = remain(t), n = daysOf(t), k = skipOf(t);
+  d -= offOf(t);
   if (d < 0 || d >= n) return null;
   let s, e;
   if (t.perDay){ s = d*t.perDay; e = Math.min(T, s+t.perDay); }
   else { s = Math.floor(T*d/n); e = Math.floor(T*(d+1)/n); }
+  s += k; e += k;
   return e > s ? {s,e} : null;
 }
 function linesOf(t, d){
@@ -178,7 +185,7 @@ function render(){
     const el = document.createElement("div");
     el.className = "task";
     el.style.setProperty("--c", `var(${t.color})`);
-    el.innerHTML = `<div class="task-head"><span class="task-name">${t.name}</span><span class="task-prog">${d+1} / ${n}日目</span></div>` +
+    el.innerHTML = `<div class="task-head"><span class="task-name">${t.name}</span><span class="task-prog">${d-offOf(t)+1} / ${n}日目</span></div>` +
       ls.map(l => {
         const r = l.from === l.to ? `${l.from}` : `${l.from}〜${l.to}`;
         return `<div class="line"><span class="lbl">${l.label}</span><span class="rng">${r}</span>` +
@@ -190,7 +197,7 @@ function render(){
   if (!any){
     list.innerHTML = `<div class="empty">${d < 0 ? "まだ開始前です" : "この日の予定はありません"}</div>`;
   } else {
-    const finished = TASKS.filter(t => d >= daysOf(t)).map(t => t.name);
+    const finished = TASKS.filter(t => d >= endOf(t)).map(t => t.name);
     if (finished.length){
       const f = document.createElement("div");
       f.className = "done"; f.textContent = "一周済み: " + finished.join("・");
