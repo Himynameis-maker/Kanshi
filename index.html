@@ -132,7 +132,7 @@ const TASKS = [
       { label:"数IA",  total:610, unit:"ページ" },
       { label:"数IIB", total:931, unit:"ページ" },
       { label:"数III", total:719, unit:"ページ" } ] },
-  { name:"英文法", color:"--eng", days:25,
+  { name:"英文法", color:"--eng", days:25, skip:16,
     segments:[ { label:"英文法", total:219, unit:"ページ" } ] },
   { name:"最短物理", color:"--phy", days:15, start:"2026-10-17", skip:22,
     segments:[ { label:"最短物理", total:244, unit:"ページ" } ] },
@@ -143,6 +143,7 @@ const TASKS = [
 
 // 変更があったら新しいものを先頭に追加する（YYYY-MM-DD）
 const CHANGELOG = [
+  { date:"2026-10-17", text:"英文法の1〜16ページを完了扱いに設定。" },
   { date:"2026-10-17", text:"学習計画を今日開始に変更。英文法を25日間に調整。" }
 ];
 
