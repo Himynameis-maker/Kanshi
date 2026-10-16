@@ -165,6 +165,7 @@ const TASKS = [
 
 // 変更があったら新しいものを先頭に追加する（YYYY-MM-DD）
 const CHANGELOG = [
+  { date:"2026-10-17", text:"メモ入力欄の再タップでも開閉できるよう修正。" },
   { date:"2026-10-17", text:"メモ入力時の自動ズームを防ぎ、フォーカス時のスクロールを抑制。" },
   { date:"2026-10-17", text:"メモが開いているタスク帯を再タップすると折りたためるように変更。" },
   { date:"2026-10-17", text:"共有メモをCloudflare Pages Functions＋D1に対応。" },
@@ -350,7 +351,7 @@ function render(){
           if (e.key === "Enter") { e.preventDefault(); saveActiveNote(); render(); }
           if (e.key === "Escape") { saveActiveNote(); render(); }
         });
-        input.addEventListener("click", e => e.stopPropagation());
+        // 入力欄の再タップも親の帯に伝えて、開いているメモを閉じられるようにする。
         el.appendChild(input);
       } else {
         const note = document.createElement("button");
