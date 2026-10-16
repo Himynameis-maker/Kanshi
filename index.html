@@ -357,7 +357,15 @@ function render(){
         note.className = "task-note";
         note.textContent = savedNote;
         note.setAttribute("aria-label", "メモ。1秒長押しで編集");
-        note.addEventListener("click", e => e.stopPropagation());
+        note.addEventListener("click", e => {
+          e.stopPropagation();
+          // 保存済みメモを再タップしたら閉じる。長押しで編集へ移行した場合は閉じない。
+          if (activeNote && activeNote.key === noteId && activeNote.mode === "view") {
+            activeNote = null;
+            noteDraft = "";
+            render();
+          }
+        });
         note.addEventListener("pointerdown", e => {
           if (e.pointerType === "mouse" && e.button !== 0) return;
           clearTimeout(notePressTimer);
