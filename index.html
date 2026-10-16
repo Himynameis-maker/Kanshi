@@ -29,7 +29,7 @@ button:focus-visible{outline:2px solid var(--math);outline-offset:3px;border-rad
 .cal-btn svg{width:24px;height:24px}
 .log-btn{height:36px;padding:0 11px;border:1px solid var(--line);border-radius:10px;font-size:13px;color:var(--sub)}
 .log-btn:active{background:var(--line);color:var(--ink)}
-.log-list{display:flex;flex-direction:column;gap:0;max-height:min(60vh,440px);overflow:auto}
+.log-list{display:flex;flex-direction:column;gap:0;max-height:min(60vh,440px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .log-item{display:grid;grid-template-columns:82px 1fr;gap:10px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px;line-height:1.5}
 .log-item:last-child{border-bottom:0}
 .log-date{color:var(--sub);font-variant-numeric:tabular-nums}
@@ -243,7 +243,8 @@ function renderLog(){
     list.innerHTML = '<div class="log-empty">まだ変更履歴はありません。</div>';
     return;
   }
-  for (const item of CHANGELOG){
+  const newestFirst = [...CHANGELOG].sort((a,b) => b.date.localeCompare(a.date));
+  for (const item of newestFirst){
     const row = document.createElement("div");
     row.className = "log-item";
     const date = document.createElement("div");
@@ -255,7 +256,7 @@ function renderLog(){
     list.appendChild(row);
   }
 }
-function openLog(){ renderLog(); $("logOverlay").classList.add("open"); }
+function openLog(){ renderLog(); $("logList").scrollTop = 0; $("logOverlay").classList.add("open"); }
 function closeLog(){ $("logOverlay").classList.remove("open"); }
 $("logBtn").onclick = openLog;
 $("logClose").onclick = closeLog;
