@@ -62,10 +62,13 @@ body.log-open{overflow:hidden}
 .task{background:var(--card);border-radius:14px;padding:14px 16px 14px 20px;position:relative;overflow:hidden}
 .task::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c)}
 .task.has-note{background:color-mix(in srgb,#D9534F 7%,var(--card))}
+.task{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .task-head{padding-right:22px}
 .note-mark{position:absolute;right:10px;top:10px;font-size:13px;line-height:1}
 .task-note{display:block;width:100%;min-height:34px;margin-top:9px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font-size:13px;font-weight:400;line-height:1.45;overflow-wrap:anywhere;white-space:pre-wrap;text-align:left}
 .task-note-input{display:block;width:100%;height:34px;margin-top:9px;padding:5px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font:inherit;font-size:16px;font-weight:400;outline:none}
+.task-note.empty{color:var(--sub)}
+.task-note-input{-webkit-user-select:text;user-select:text}
 .task-note-input:focus{border-color:var(--math)}
 .task-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
 .task-name{font-size:14px;font-weight:700;color:var(--c)}
@@ -165,6 +168,7 @@ const TASKS = [
 
 // 変更があったら新しいものを先頭に追加する（YYYY-MM-DD）
 const CHANGELOG = [
+  { date:"2026-10-17", text:"メモの閲覧は帯のタップで開閉、編集は0.8秒長押しに変更（メモ未記入でも同じ）。" },
   { date:"2026-10-17", text:"タスク帯の見出しを再タップするとメモを確実に閉じるよう修正。" },
   { date:"2026-10-17", text:"メモ入力時の自動ズームを防ぎ、フォーカス時のスクロールを抑制。" },
   { date:"2026-10-17", text:"メモが開いているタスク帯を再タップすると折りたためるように変更。" },
@@ -279,23 +283,32 @@ function saveActiveNote(){
   activeNote = null;
   noteDraft = "";
 }
-function openTaskNote(task, date){
+function closeActiveNote(){
+  if (activeNote && activeNote.mode === "edit") saveActiveNote();
+  else { activeNote = null; noteDraft = ""; }
+}
+// 短いタップ：メモの閲覧を開閉（未記入でも開く）
+function toggleTaskNote(task, date){
+  const key = noteKey(task, date);
+  if (activeNote && activeNote.key === key) { closeActiveNote(); render(); return; }
+  if (activeNote) saveActiveNote();
+  activeNote = {key, mode: "view", taskName: task.name, date: dateKey(date)};
+  noteDraft = readNote(key);
+  render();
+}
+// 0.8秒長押し：メモの編集を開始（未記入でも同じ）
+function editTaskNote(task, date){
   const key = noteKey(task, date);
   if (activeNote && activeNote.key === key) {
-    if (activeNote.mode === "edit") saveActiveNote();
-    else { activeNote = null; noteDraft = ""; }
-    render();
+    if (activeNote.mode !== "edit") beginNoteEdit(key);
     return;
   }
   if (activeNote) saveActiveNote();
-  const saved = readNote(key);
-  activeNote = {key, mode: saved ? "view" : "edit", taskName: task.name, date: dateKey(date)};
-  noteDraft = saved;
+  activeNote = {key, mode: "edit", taskName: task.name, date: dateKey(date)};
+  noteDraft = readNote(key);
   render();
-  if (activeNote && activeNote.mode === "edit") {
-    const input = document.querySelector(".task-note-input");
-    if (input) { input.focus({ preventScroll: true }); input.setSelectionRange(input.value.length, input.value.length); }
-  }
+  const input = document.querySelector(".task-note-input");
+  if (input) { input.focus({ preventScroll: true }); input.setSelectionRange(input.value.length, input.value.length); }
 }
 function beginNoteEdit(key){
   if (!activeNote || activeNote.key !== key) return;
@@ -305,6 +318,31 @@ function beginNoteEdit(key){
   const input = document.querySelector(".task-note-input");
   if (input) { input.focus({ preventScroll: true }); input.setSelectionRange(input.value.length, input.value.length); }
 }
+
+/* 帯：タップで閲覧の開閉、0.8秒長押しで編集 */
+const NOTE_PRESS_MS = 800;
+const NOTE_MOVE_TOL = 10;
+let press = null;
+function cancelPress(){ if (press) { clearTimeout(press.timer); press = null; } }
+function startPress(e, task, date){
+  if (e.pointerType === "mouse" && e.button !== 0) return;
+  if (e.target.closest(".task-note-input")) return;
+  cancelPress();
+  const p = { task, date, x: e.clientX, y: e.clientY, fired: false };
+  p.timer = setTimeout(() => { p.fired = true; editTaskNote(task, date); }, NOTE_PRESS_MS);
+  press = p;
+}
+document.addEventListener("pointermove", e => {
+  if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > NOTE_MOVE_TOL) cancelPress();
+});
+document.addEventListener("pointerup", () => {
+  if (!press) return;
+  const p = press;
+  clearTimeout(p.timer);
+  press = null;
+  if (!p.fired) toggleTaskNote(p.task, p.date);
+});
+document.addEventListener("pointercancel", cancelPress);
 
 function render(){
   const d = dayIndex(view);
@@ -356,45 +394,15 @@ function render(){
       } else {
         const note = document.createElement("button");
         note.type = "button";
-        note.className = "task-note";
-        note.textContent = savedNote;
-        note.setAttribute("aria-label", "メモ。1秒長押しで編集");
-        note.addEventListener("click", e => {
-          e.stopPropagation();
-          // 保存済みメモを再タップしたら閉じる。長押しで編集へ移行した場合は閉じない。
-          if (activeNote && activeNote.key === noteId && activeNote.mode === "view") {
-            activeNote = null;
-            noteDraft = "";
-            render();
-          }
-        });
-        note.addEventListener("pointerdown", e => {
-          if (e.pointerType === "mouse" && e.button !== 0) return;
-          clearTimeout(notePressTimer);
-          notePressTimer = setTimeout(() => beginNoteEdit(noteId), 1000);
-        });
-        const clearPress = () => { clearTimeout(notePressTimer); notePressTimer = null; };
-        note.addEventListener("pointerup", clearPress);
-        note.addEventListener("pointerleave", clearPress);
-        note.addEventListener("pointercancel", clearPress);
+        note.className = "task-note" + (savedNote ? "" : " empty");
+        note.textContent = savedNote || "メモなし（0.8秒長押しで追加）";
+        note.setAttribute("aria-label", "メモ。タップで閉じる、0.8秒長押しで編集");
         el.appendChild(note);
       }
     }
-    const taskHead = el.querySelector(".task-head");
-    taskHead.addEventListener("click", e => {
-      e.stopPropagation();
-      if (activeNote && activeNote.key === noteId) {
-        if (activeNote.mode === "edit") saveActiveNote();
-        else { activeNote = null; noteDraft = ""; }
-        render();
-      } else {
-        openTaskNote(t, view);
-      }
-    });
-    el.addEventListener("click", e => {
-      if (e.target.closest(".task-note-input") || e.target.closest(".task-head")) return;
-      openTaskNote(t, view);
-    });
+    const viewDate = view;
+    el.addEventListener("pointerdown", e => startPress(e, t, viewDate));
+    el.addEventListener("contextmenu", e => e.preventDefault());
     list.appendChild(el);
   }
   if (!any){
