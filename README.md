@@ -2,7 +2,7 @@
 
 その日にやる範囲を縦に並べて表示する、1ファイル完結のHTML。ブラウザで `index.html` を開くだけで動く（サーバー・外部ライブラリ不要）。
 
-## 現在の計画（開始日 2026-10-17 = 1日目）
+## 現在の計画（全体表示の基準日 2026-10-17）
 
 | 科目 | 教材 | 総量・残量 | 期間・ペース |
 |---|---|---:|---|
@@ -32,19 +32,19 @@
 編集するのは `index.html` 内の `<script>` 冒頭の **設定ブロック** だけ（`/* ===== 設定 ===== */` で囲まれた部分）。
 
 ```js
-const START = "2026-10-17";   // 1日目
+const TIMELINE_START = "2026-10-17"; // 全体の日数表示の基準日
 
 const TASKS = [
-  { name:"数学", color:"--math", days:60,
+  { name:"数学", color:"--math", days:60, start:"2026-10-15",
     segments:[
       { label:"数IA",  total:610, unit:"ページ" },
       { label:"数IIB", total:931, unit:"ページ" },
       { label:"数III", total:719, unit:"ページ" } ] },
-  { name:"英文法", color:"--eng", days:25, skip:16,
+  { name:"英文法", color:"--eng", days:25, start:"2026-10-17", skip:16,
     segments:[ { label:"英文法", total:219, unit:"ページ" } ] },
   { name:"最短物理", color:"--phy", days:15, start:"2026-10-17", skip:22,
     segments:[ { label:"最短物理", total:244, unit:"ページ" } ] },
-  { name:"英文英単語Z", color:"--sent", perDay:3,
+  { name:"英文英単語Z", color:"--sent", perDay:3, start:"2026-10-15",
     segments:[ { label:"英文英単語Z", total:70, unit:"", extra:"＋ 付随する英単語" } ] }
 ];
 ```
@@ -57,7 +57,7 @@ const TASKS = [
 | `color` | 色。`--math` `--eng` `--phy` `--sent` のどれか（CSSの `:root` で定義。増やすならそこに追加） |
 | `days` | 全体を何日で一周するか。総量を均等割りする |
 | `perDay` | 1日の固定量。`days` の代わりに使う。日数は `ceil(総量÷perDay)` で自動計算、余りは最終日 |
-| `start` | そのタスクの開始日。省略時は `START` |
+| `start` | そのタスクの開始日（必須） |
 | `skip` | 開始時点で完了扱いにする量 |
 | `segments` | 順番にこなす教材のリスト。`label`=表示名、`total`=量、`unit`=単位（「ページ」など。不要なら `""`）、`extra`=範囲の後ろに付ける補足（任意） |
 
@@ -83,7 +83,7 @@ const CHANGELOG = [
 
 ### よくある変更
 
-- **開始日を変える** → `START` を書き換える。
+- **科目の開始日を変える** → その科目の `start` を書き換える。全体の日数表示の基準日は `TIMELINE_START` で設定する。
 - **日数・ペースを変える** → `days` / `perDay` を変更。
 - **ページ数を変える** → 該当 `segments` の `total` を変更。
 - **科目を追加** → `TASKS` に1オブジェクト追加（色が必要なら `:root` と `@media (prefers-color-scheme:dark)` の両方に `--xxx` を追加）。
@@ -91,7 +91,7 @@ const CHANGELOG = [
 
 ## 仕組み（コードの読み方）
 
-- `dayIndex(date)`：START からの日数（0始まり）。
+- `dayIndex(date)`：`TIMELINE_START` からの日数（0始まり）。各科目の表示範囲は、それぞれの `start` を基準に計算する。
 - `span(task, d)`：d日目に担当する範囲を、通し番号の半開区間 `[s, e)` で返す。
 - `linesOf(task, d)`：通し番号の範囲を `segments` ごとに分割し、各教材内のページ番号（1始まり）に直す。
 - `render()`：表示中の日付 `view` から画面を描画。`today` は実際の今日、`view` は表示中の日。
