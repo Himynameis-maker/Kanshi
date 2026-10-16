@@ -27,19 +27,30 @@
 - 完了した科目は、その日以降「一周済み: ○○」と表示。
 - ダークモード対応（OS設定に追従）。
 
-## 共有メモの有効化（初回のみ）
+## 共有メモの有効化（Cloudflare Pages + D1）
 
-メモを全員で共有するには、Supabase のプロジェクトを作成して接続する必要があります。現時点ではコードとSQLを追加済みですが、接続情報はプレースホルダーなので、設定が終わるまでは従来の端末内保存で動きます。
+共有メモは Cloudflare Pages Functions と D1 データベースで保存します。フロントエンドにAPIキーを置く必要はありません。
 
-1. [Supabase](https://supabase.com/) でプロジェクトを作成する。
-2. Supabase の **SQL Editor** で `supabase/kanshi_notes.sql` の内容を実行する。
-3. Supabase のプロジェクト設定から **Project URL** と **anon / publishable key** をコピーする。**service_role key は絶対にブラウザに置かない**。
-4. `index.html` の設定ブロックにある `SUPABASE_URL` と `SUPABASE_ANON_KEY` を実際の値に置き換え、GitHub に反映する。
-5. サイトを開き直し、メモを作成して別のブラウザや端末から同じ日付・科目に表示されるか確認する。
+1. Cloudflare の **Workers & Pages** で、この GitHub リポジトリを Pages プロジェクトとしてデプロイします。
+2. **Settings → Bindings** で D1 database binding を追加し、Variable name を `DB`、データベースを `kanshi-notes` にして保存します。
+3. Cloudflare の **D1 → kanshi-notes → Console** を開き、次のSQLを実行してテーブルを作成します（リポジトリ内の `migrations/0001_create_kanshi_notes.sql` と同じ内容です）。
 
-共有メモは約30秒ごとに再読み込みされます。ネットワークやSupabase設定に問題があると、保存・読み込みエラーが表示されます。
+```sql
+CREATE TABLE IF NOT EXISTS kanshi_notes (
+  note_date TEXT NOT NULL,
+  task_name TEXT NOT NULL,
+  content TEXT NOT NULL CHECK (length(content) <= 500),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (note_date, task_name)
+);
+```
 
-**公開範囲に注意：** このSQLはサイトを使える全員にメモの閲覧・追加・編集・削除を許可します。秘密情報や個人情報は書かないでください。ログインや編集者制限が必要なら別途認証機能が必要です。以前の `localStorage` にあるメモは自動移行されず、その端末に残ります。
+4. GitHub に反映された `functions/api/notes.js` と `index.html` が自動デプロイされるのを待ち、公開サイトを開いてメモを保存します。
+5. 別のブラウザや端末で同じ日付・科目を開き、メモが共有されることを確認します。
+
+共有メモは約30秒ごとに再読み込みされます。以前の `localStorage` にあるメモは自動移行されず、その端末に残ります。
+
+**公開範囲に注意：** このサイトを開ける人は誰でもメモを閲覧・追加・編集・削除できます。秘密情報や個人情報は書かないでください。APIは入力内容を検証しますが、ログインや編集者制限はありません。
 
 ## 編集方法
 
