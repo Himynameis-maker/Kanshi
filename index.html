@@ -65,7 +65,7 @@ body.log-open{overflow:hidden}
 .task-head{padding-right:22px}
 .note-mark{position:absolute;right:10px;top:10px;font-size:13px;line-height:1}
 .task-note{display:block;width:100%;min-height:34px;margin-top:9px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font-size:13px;font-weight:400;line-height:1.45;overflow-wrap:anywhere;white-space:pre-wrap;text-align:left}
-.task-note-input{display:block;width:100%;height:34px;margin-top:9px;padding:5px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font:inherit;font-size:14px;font-weight:400;outline:none}
+.task-note-input{display:block;width:100%;height:34px;margin-top:9px;padding:5px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font:inherit;font-size:16px;font-weight:400;outline:none}
 .task-note-input:focus{border-color:var(--math)}
 .task-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
 .task-name{font-size:14px;font-weight:700;color:var(--c)}
@@ -165,6 +165,7 @@ const TASKS = [
 
 // 変更があったら新しいものを先頭に追加する（YYYY-MM-DD）
 const CHANGELOG = [
+  { date:"2026-10-17", text:"メモ入力時の自動ズームを防ぎ、フォーカス時のスクロールを抑制。" },
   { date:"2026-10-17", text:"メモが開いているタスク帯を再タップすると折りたためるように変更。" },
   { date:"2026-10-17", text:"共有メモをCloudflare Pages Functions＋D1に対応。" },
   { date:"2026-10-17", text:"科目・日付ごとのメモと自動保存を追加。" },
@@ -292,7 +293,7 @@ function openTaskNote(task, date){
   render();
   if (activeNote && activeNote.mode === "edit") {
     const input = document.querySelector(".task-note-input");
-    if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+    if (input) { input.focus({ preventScroll: true }); input.setSelectionRange(input.value.length, input.value.length); }
   }
 }
 function beginNoteEdit(key){
@@ -301,7 +302,7 @@ function beginNoteEdit(key){
   noteDraft = readNote(key);
   render();
   const input = document.querySelector(".task-note-input");
-  if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+  if (input) { input.focus({ preventScroll: true }); input.setSelectionRange(input.value.length, input.value.length); }
 }
 
 function render(){
