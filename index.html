@@ -61,6 +61,12 @@ body.log-open{overflow:hidden}
 .list{display:flex;flex-direction:column;gap:12px;margin-top:14px}
 .task{background:var(--card);border-radius:14px;padding:14px 16px 14px 20px;position:relative;overflow:hidden}
 .task::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c)}
+.task.has-note{background:color-mix(in srgb,#D9534F 7%,var(--card))}
+.task-head{padding-right:22px}
+.note-mark{position:absolute;right:10px;top:10px;font-size:13px;line-height:1}
+.task-note{display:block;width:100%;min-height:34px;margin-top:9px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font-size:13px;font-weight:400;line-height:1.45;overflow-wrap:anywhere;white-space:pre-wrap;text-align:left}
+.task-note-input{display:block;width:100%;height:34px;margin-top:9px;padding:5px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font:inherit;font-size:14px;font-weight:400;outline:none}
+.task-note-input:focus{border-color:var(--math)}
 .task-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
 .task-name{font-size:14px;font-weight:700;color:var(--c)}
 .task-prog{font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums}
@@ -159,6 +165,7 @@ const TASKS = [
 
 // 変更があったら新しいものを先頭に追加する（YYYY-MM-DD）
 const CHANGELOG = [
+  { date:"2026-10-17", text:"科目・日付ごとのメモと自動保存を追加。" },
   { date:"2026-10-17", text:"全科目の開始日を個別設定し、全体基準日と分離。" },
   { date:"2026-10-17", text:"変更履歴を開いた際の検索欄への自動フォーカスを解除。" },
   { date:"2026-10-17", text:"英文法の1〜16ページを完了扱いに設定。" },
@@ -205,6 +212,42 @@ function linesOf(t, d){
 let today = stripTime(new Date());
 let view = today;
 let calMonth = new Date(view.getFullYear(), view.getMonth(), 1);
+let activeNote = null;
+let noteDraft = "";
+let notePressTimer = null;
+
+const dateKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const noteKey = (task, d) => `kanshi-note:${dateKey(d)}:${task.name}`;
+const readNote = key => { try { return localStorage.getItem(key) || ""; } catch { return ""; } };
+function saveActiveNote(){
+  if (!activeNote) return;
+  const key = activeNote.key;
+  const value = noteDraft.trim();
+  try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch {}
+  activeNote = null;
+  noteDraft = "";
+}
+function openTaskNote(task, date){
+  const key = noteKey(task, date);
+  if (activeNote && activeNote.key === key) return;
+  if (activeNote) saveActiveNote();
+  const saved = readNote(key);
+  activeNote = {key, mode: saved ? "view" : "edit", taskName: task.name, date: dateKey(date)};
+  noteDraft = saved;
+  render();
+  if (activeNote && activeNote.mode === "edit") {
+    const input = document.querySelector(".task-note-input");
+    if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+  }
+}
+function beginNoteEdit(key){
+  if (!activeNote || activeNote.key !== key) return;
+  activeNote.mode = "edit";
+  noteDraft = readNote(key);
+  render();
+  const input = document.querySelector(".task-note-input");
+  if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+}
 
 function render(){
   const d = dayIndex(view);
@@ -225,15 +268,54 @@ function render(){
     any = true;
     const n = daysOf(t);
     const el = document.createElement("div");
-    el.className = "task";
+    const noteId = noteKey(t, view);
+    const savedNote = readNote(noteId);
+    const isActiveNote = activeNote && activeNote.key === noteId;
+    el.className = "task" + (savedNote ? " has-note" : "");
     el.style.setProperty("--c", `var(${t.color})`);
     el.innerHTML = `<div class="task-head"><span class="task-name">${t.name}</span><span class="task-prog">${d-offOf(t)+1} / ${n}日目</span></div>` +
+      (savedNote ? `<span class="note-mark" aria-hidden="true">⚠️</span>` : "") +
       ls.map(l => {
         const r = l.from === l.to ? `${l.from}` : `${l.from}〜${l.to}`;
         return `<div class="line"><span class="lbl">${l.label}</span><span class="rng">${r}</span>` +
           (l.unit ? `<span class="unit">${l.unit}</span>` : "") +
           (l.extra ? `<span class="extra">${l.extra}</span>` : "") + `</div>`;
       }).join("");
+    if (isActiveNote) {
+      if (activeNote.mode === "edit") {
+        const input = document.createElement("input");
+        input.className = "task-note-input";
+        input.type = "text";
+        input.maxLength = 500;
+        input.setAttribute("aria-label", "メモ");
+        input.value = noteDraft;
+        input.addEventListener("input", () => { noteDraft = input.value; });
+        input.addEventListener("keydown", e => {
+          if (e.key === "Enter") { e.preventDefault(); saveActiveNote(); render(); }
+          if (e.key === "Escape") { saveActiveNote(); render(); }
+        });
+        input.addEventListener("click", e => e.stopPropagation());
+        el.appendChild(input);
+      } else {
+        const note = document.createElement("button");
+        note.type = "button";
+        note.className = "task-note";
+        note.textContent = savedNote;
+        note.setAttribute("aria-label", "メモ。1秒長押しで編集");
+        note.addEventListener("click", e => e.stopPropagation());
+        note.addEventListener("pointerdown", e => {
+          if (e.pointerType === "mouse" && e.button !== 0) return;
+          clearTimeout(notePressTimer);
+          notePressTimer = setTimeout(() => beginNoteEdit(noteId), 1000);
+        });
+        const clearPress = () => { clearTimeout(notePressTimer); notePressTimer = null; };
+        note.addEventListener("pointerup", clearPress);
+        note.addEventListener("pointerleave", clearPress);
+        note.addEventListener("pointercancel", clearPress);
+        el.appendChild(note);
+      }
+    }
+    el.addEventListener("click", () => openTaskNote(t, view));
     list.appendChild(el);
   }
   if (!any){
@@ -248,7 +330,18 @@ function render(){
   }
 }
 
-function shift(n){ view = new Date(view.getFullYear(), view.getMonth(), view.getDate()+n); render(); }
+document.addEventListener("click", e => {
+  if (activeNote && !e.target.closest(".task")) {
+    saveActiveNote();
+    render();
+  }
+});
+
+function shift(n){
+  if (activeNote) saveActiveNote();
+  view = new Date(view.getFullYear(), view.getMonth(), view.getDate()+n);
+  render();
+}
 $("prev").onclick = () => shift(-1);
 $("next").onclick = () => shift(1);
 $("todayLink").onclick = () => { view = today; render(); };
