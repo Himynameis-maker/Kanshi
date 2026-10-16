@@ -24,9 +24,16 @@ button:focus-visible{outline:2px solid var(--math);outline-offset:3px;border-rad
 .wrap{max-width:560px;margin:0 auto;padding:12px 16px 48px}
 
 /* header */
-.top{display:flex;align-items:center;height:44px}
+.top{display:flex;align-items:center;justify-content:space-between;height:44px}
 .cal-btn{width:44px;height:44px;display:grid;place-items:center;margin-left:-10px;color:var(--sub)}
 .cal-btn svg{width:24px;height:24px}
+.log-btn{height:36px;padding:0 11px;border:1px solid var(--line);border-radius:10px;font-size:13px;color:var(--sub)}
+.log-btn:active{background:var(--line);color:var(--ink)}
+.log-list{display:flex;flex-direction:column;gap:0;max-height:min(60vh,440px);overflow:auto}
+.log-item{display:grid;grid-template-columns:82px 1fr;gap:10px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px;line-height:1.5}
+.log-item:last-child{border-bottom:0}
+.log-date{color:var(--sub);font-variant-numeric:tabular-nums}
+.log-empty{font-size:14px;color:var(--sub);padding:18px 0}
 .nav{display:flex;align-items:center;justify-content:space-between;margin:14px 0 6px}
 .arrow{width:56px;height:72px;font-size:40px;font-weight:200;color:var(--sub);line-height:1}
 .arrow:active{color:var(--ink)}
@@ -74,6 +81,7 @@ button:focus-visible{outline:2px solid var(--math);outline-offset:3px;border-rad
     <button class="cal-btn" id="calBtn" aria-label="カレンダーを開く">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
     </button>
+    <button class="log-btn" id="logBtn" aria-label="変更履歴を開く">変更履歴</button>
   </div>
 
   <div class="nav">
@@ -87,6 +95,16 @@ button:focus-visible{outline:2px solid var(--math);outline-offset:3px;border-rad
   <button class="today-link" id="todayLink" hidden>今日に戻る</button>
 
   <div class="list" id="list"></div>
+</div>
+
+<div class="overlay" id="logOverlay">
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="logTitle">
+    <div class="mhead">
+      <div class="t" id="logTitle">変更履歴</div>
+      <button id="logClose" aria-label="変更履歴を閉じる">×</button>
+    </div>
+    <div class="log-list" id="logList"></div>
+  </div>
 </div>
 
 <div class="overlay" id="overlay">
@@ -122,6 +140,11 @@ const TASKS = [
     segments:[ { label:"英文英単語Z", total:70, unit:"", extra:"＋ 付随する英単語" } ] }
 ];
 /* ============================================== */
+
+// 変更があったら新しいものを先頭に追加する（YYYY-MM-DD）
+const CHANGELOG = [
+  { date:"2026-10-17", text:"学習計画を今日開始に変更。英文法を25日間に調整。" }
+];
 
 const WD = ["日","月","火","水","木","金","土"];
 const $ = id => document.getElementById(id);
@@ -211,6 +234,32 @@ $("prev").onclick = () => shift(-1);
 $("next").onclick = () => shift(1);
 $("todayLink").onclick = () => { view = today; render(); };
 
+/* 変更履歴 */
+function renderLog(){
+  const list = $("logList");
+  list.innerHTML = "";
+  if (!CHANGELOG.length){
+    list.innerHTML = '<div class="log-empty">まだ変更履歴はありません。</div>';
+    return;
+  }
+  for (const item of CHANGELOG){
+    const row = document.createElement("div");
+    row.className = "log-item";
+    const date = document.createElement("div");
+    date.className = "log-date";
+    date.textContent = item.date;
+    const detail = document.createElement("div");
+    detail.textContent = item.text;
+    row.append(date, detail);
+    list.appendChild(row);
+  }
+}
+function openLog(){ renderLog(); $("logOverlay").classList.add("open"); }
+function closeLog(){ $("logOverlay").classList.remove("open"); }
+$("logBtn").onclick = openLog;
+$("logClose").onclick = closeLog;
+$("logOverlay").onclick = e => { if (e.target === $("logOverlay")) closeLog(); };
+
 /* カレンダー */
 function renderCal(){
   const y = calMonth.getFullYear(), m = calMonth.getMonth();
@@ -234,7 +283,7 @@ $("overlay").onclick = e => { if (e.target === $("overlay")) closeCal(); };
 $("mPrev").onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth()-1, 1); renderCal(); };
 $("mNext").onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth()+1, 1); renderCal(); };
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape") closeCal();
+  if (e.key === "Escape") { closeCal(); closeLog(); }
   if (!$("overlay").classList.contains("open")){
     if (e.key === "ArrowLeft") shift(-1);
     if (e.key === "ArrowRight") shift(1);
