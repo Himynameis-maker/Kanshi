@@ -165,6 +165,7 @@ const TASKS = [
 
 // 変更があったら新しいものを先頭に追加する（YYYY-MM-DD）
 const CHANGELOG = [
+  { date:"2026-10-17", text:"メモをSupabase共有保存に対応（接続設定が必要）。" },
   { date:"2026-10-17", text:"科目・日付ごとのメモと自動保存を追加。" },
   { date:"2026-10-17", text:"全科目の開始日を個別設定し、全体基準日と分離。" },
   { date:"2026-10-17", text:"変更履歴を開いた際の検索欄への自動フォーカスを解除。" },
@@ -236,18 +237,22 @@ const readNote = key => {
 function cloudHeaders(extra = {}) {
   return { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "application/json", ...extra };
 }
-async function loadCloudNotes(){
+async function loadCloudNotes(showError = true){
   if (!CLOUD_NOTES_ENABLED) return;
   try {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/kanshi_notes?select=note_date,task_name,content`, { headers: cloudHeaders() });
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/kanshi_notes?select=note_date,task_name,content`, { headers: cloudHeaders(), cache: "no-store" });
     if (!response.ok) throw new Error(`共有メモの読み込みに失敗しました (${response.status})`);
     const rows = await response.json();
+    const fresh = new Map(rows.map(row => [`kanshi-note:${row.note_date}:${row.task_name}`, row.content || ""]));
+    // 編集中の入力を外部更新で上書きしない
+    if (activeNote?.mode === "edit") fresh.set(activeNote.key, sharedNotes.get(activeNote.key) || "");
     sharedNotes.clear();
-    for (const row of rows) sharedNotes.set(`kanshi-note:${row.note_date}:${row.task_name}`, row.content || "");
+    for (const [key, value] of fresh) sharedNotes.set(key, value);
     cloudNotesLoaded = true;
+    if (!activeNote || activeNote.mode !== "edit") render();
   } catch (error) {
     console.error(error);
-    alert("共有メモを読み込めませんでした。接続設定とSupabaseのテーブル設定を確認してください。");
+    if (showError) alert("共有メモを読み込めませんでした。接続設定とSupabaseのテーブル設定を確認してください。");
   }
 }
 async function syncCloudNote(key, value, date, taskName){
@@ -502,6 +507,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) tick
 
 if (CLOUD_NOTES_ENABLED) {
   loadCloudNotes().finally(() => render());
+  setInterval(() => { if (!document.hidden) loadCloudNotes(false); }, 30000);
 } else {
   render();
 }
