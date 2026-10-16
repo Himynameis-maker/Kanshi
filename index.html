@@ -159,6 +159,7 @@ const TASKS = [
 
 // 変更があったら新しいものを先頭に追加する（YYYY-MM-DD）
 const CHANGELOG = [
+  { date:"2026-10-17", text:"変更履歴を開いた際の検索欄への自動フォーカスを解除。" },
   { date:"2026-10-17", text:"英文法の1〜16ページを完了扱いに設定。" },
   { date:"2026-10-17", text:"学習計画を今日開始に変更。英文法を25日間に調整。" }
 ];
@@ -291,7 +292,6 @@ function openLog(){
   renderLog();
   $("logList").scrollTop = 0;
   $("logOverlay").classList.add("open");
-  $("logSearch").focus({preventScroll:true});
 }
 function closeLog(){
   $("logOverlay").classList.remove("open");
