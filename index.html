@@ -165,7 +165,7 @@ const TASKS = [
 
 // 変更があったら新しいものを先頭に追加する（YYYY-MM-DD）
 const CHANGELOG = [
-  { date:"2026-10-17", text:"メモをSupabase共有保存に対応（接続設定が必要）。" },
+  { date:"2026-10-17", text:"共有メモをCloudflare Pages Functions＋D1に対応。" },
   { date:"2026-10-17", text:"科目・日付ごとのメモと自動保存を追加。" },
   { date:"2026-10-17", text:"全科目の開始日を個別設定し、全体基準日と分離。" },
   { date:"2026-10-17", text:"変更履歴を開いた際の検索欄への自動フォーカスを解除。" },
@@ -173,14 +173,8 @@ const CHANGELOG = [
   { date:"2026-10-17", text:"学習計画を今日開始に変更。英文法を25日間に調整。" }
 ];
 
-/* 共有メモ設定: Supabase の Project URL と anon/public key を入力する */
-const SUPABASE_URL = "https://YOUR_PROJECT.supabase.co";
-const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
-const CLOUD_NOTES_ENABLED =
-  SUPABASE_URL.startsWith("https://") &&
-  !SUPABASE_URL.includes("YOUR_PROJECT") &&
-  SUPABASE_ANON_KEY.length > 20 &&
-  !SUPABASE_ANON_KEY.includes("YOUR_SUPABASE_ANON_KEY");
+/* 共有メモは同一サイトのCloudflare Pages Function (/api/notes) 経由で保存 */
+const CLOUD_NOTES_ENABLED = true;
 
 const WD = ["日","月","火","水","木","金","土"];
 const $ = id => document.getElementById(id);
@@ -234,13 +228,10 @@ const readNote = key => {
   if (CLOUD_NOTES_ENABLED) return sharedNotes.get(key) || "";
   try { return localStorage.getItem(key) || ""; } catch { return ""; }
 };
-function cloudHeaders(extra = {}) {
-  return { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "application/json", ...extra };
-}
 async function loadCloudNotes(showError = true){
   if (!CLOUD_NOTES_ENABLED) return;
   try {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/kanshi_notes?select=note_date,task_name,content`, { headers: cloudHeaders(), cache: "no-store" });
+    const response = await fetch("/api/notes", { cache: "no-store" });
     if (!response.ok) throw new Error(`共有メモの読み込みに失敗しました (${response.status})`);
     const rows = await response.json();
     const fresh = new Map(rows.map(row => [`kanshi-note:${row.note_date}:${row.task_name}`, row.content || ""]));
@@ -252,29 +243,24 @@ async function loadCloudNotes(showError = true){
     if (!activeNote || activeNote.mode !== "edit") render();
   } catch (error) {
     console.error(error);
-    if (showError) alert("共有メモを読み込めませんでした。接続設定とSupabaseのテーブル設定を確認してください。");
+    if (showError) alert("共有メモを読み込めませんでした。CloudflareのD1接続とテーブル設定を確認してください。");
   }
 }
 async function syncCloudNote(key, value, date, taskName){
-  const query = `note_date=eq.${encodeURIComponent(date)}&task_name=eq.${encodeURIComponent(taskName)}`;
   try {
-    let response;
-    if (value) {
-      response = await fetch(`${SUPABASE_URL}/rest/v1/kanshi_notes?on_conflict=note_date,task_name`, {
-        method: "POST",
-        headers: cloudHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
-        body: JSON.stringify({ note_date: date, task_name: taskName, content: value })
-      });
-    } else {
-      response = await fetch(`${SUPABASE_URL}/rest/v1/kanshi_notes?${query}`, {
-        method: "DELETE",
-        headers: cloudHeaders({ Prefer: "return=minimal" })
-      });
-    }
+    const response = value
+      ? await fetch("/api/notes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date, taskName, content: value })
+        })
+      : await fetch(`/api/notes?date=${encodeURIComponent(date)}&taskName=${encodeURIComponent(taskName)}`, {
+          method: "DELETE"
+        });
     if (!response.ok) throw new Error(`共有メモの保存に失敗しました (${response.status})`);
   } catch (error) {
     console.error(error);
-    alert("共有メモを保存できませんでした。ネットワークとSupabaseの設定を確認してください。");
+    alert("共有メモを保存できませんでした。ネットワークとCloudflareの設定を確認してください。");
   }
 }
 function saveActiveNote(){
