@@ -172,6 +172,15 @@ const CHANGELOG = [
   { date:"2026-10-17", text:"学習計画を今日開始に変更。英文法を25日間に調整。" }
 ];
 
+/* 共有メモ設定: Supabase の Project URL と anon/public key を入力する */
+const SUPABASE_URL = "https://YOUR_PROJECT.supabase.co";
+const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+const CLOUD_NOTES_ENABLED =
+  SUPABASE_URL.startsWith("https://") &&
+  !SUPABASE_URL.includes("YOUR_PROJECT") &&
+  SUPABASE_ANON_KEY.length > 20 &&
+  !SUPABASE_ANON_KEY.includes("YOUR_SUPABASE_ANON_KEY");
+
 const WD = ["日","月","火","水","木","金","土"];
 const $ = id => document.getElementById(id);
 const [SY,SM,SD] = TIMELINE_START.split("-").map(Number);
@@ -218,12 +227,61 @@ let notePressTimer = null;
 
 const dateKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const noteKey = (task, d) => `kanshi-note:${dateKey(d)}:${task.name}`;
-const readNote = key => { try { return localStorage.getItem(key) || ""; } catch { return ""; } };
+const sharedNotes = new Map();
+let cloudNotesLoaded = false;
+const readNote = key => {
+  if (CLOUD_NOTES_ENABLED) return sharedNotes.get(key) || "";
+  try { return localStorage.getItem(key) || ""; } catch { return ""; }
+};
+function cloudHeaders(extra = {}) {
+  return { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "application/json", ...extra };
+}
+async function loadCloudNotes(){
+  if (!CLOUD_NOTES_ENABLED) return;
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/kanshi_notes?select=note_date,task_name,content`, { headers: cloudHeaders() });
+    if (!response.ok) throw new Error(`共有メモの読み込みに失敗しました (${response.status})`);
+    const rows = await response.json();
+    sharedNotes.clear();
+    for (const row of rows) sharedNotes.set(`kanshi-note:${row.note_date}:${row.task_name}`, row.content || "");
+    cloudNotesLoaded = true;
+  } catch (error) {
+    console.error(error);
+    alert("共有メモを読み込めませんでした。接続設定とSupabaseのテーブル設定を確認してください。");
+  }
+}
+async function syncCloudNote(key, value, date, taskName){
+  const query = `note_date=eq.${encodeURIComponent(date)}&task_name=eq.${encodeURIComponent(taskName)}`;
+  try {
+    let response;
+    if (value) {
+      response = await fetch(`${SUPABASE_URL}/rest/v1/kanshi_notes?on_conflict=note_date,task_name`, {
+        method: "POST",
+        headers: cloudHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
+        body: JSON.stringify({ note_date: date, task_name: taskName, content: value })
+      });
+    } else {
+      response = await fetch(`${SUPABASE_URL}/rest/v1/kanshi_notes?${query}`, {
+        method: "DELETE",
+        headers: cloudHeaders({ Prefer: "return=minimal" })
+      });
+    }
+    if (!response.ok) throw new Error(`共有メモの保存に失敗しました (${response.status})`);
+  } catch (error) {
+    console.error(error);
+    alert("共有メモを保存できませんでした。ネットワークとSupabaseの設定を確認してください。");
+  }
+}
 function saveActiveNote(){
   if (!activeNote) return;
-  const key = activeNote.key;
+  const { key, date, taskName } = activeNote;
   const value = noteDraft.trim();
-  try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch {}
+  if (CLOUD_NOTES_ENABLED) {
+    if (value) sharedNotes.set(key, value); else sharedNotes.delete(key);
+    syncCloudNote(key, value, date, taskName);
+  } else {
+    try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch {}
+  }
   activeNote = null;
   noteDraft = "";
 }
@@ -442,7 +500,11 @@ function tick(){
 setInterval(tick, 30000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
 
-render();
+if (CLOUD_NOTES_ENABLED) {
+  loadCloudNotes().finally(() => render());
+} else {
+  render();
+}
 </script>
 </body>
 </html>
