@@ -67,8 +67,8 @@ body.log-open{overflow:hidden}
 .task{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .task-head{padding-right:22px}
 .note-mark{position:absolute;right:10px;top:10px;font-size:13px;line-height:1}
-.task-note{display:block;width:100%;min-height:34px;margin-top:9px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font-size:13px;font-weight:400;line-height:1.45;overflow-wrap:anywhere;white-space:pre-wrap;text-align:left}
-.task-note-input{display:block;width:100%;height:34px;margin-top:9px;padding:5px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font:inherit;font-size:16px;font-weight:400;outline:none}
+.task-note{display:block;width:100%;min-height:34px;margin-top:9px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font-size:17px;font-weight:400;line-height:1.45;overflow-wrap:anywhere;white-space:pre-wrap;text-align:left}
+.task-note-input{display:block;width:100%;height:42px;margin-top:9px;padding:5px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font:inherit;font-size:20px;font-weight:400;outline:none}
 .task-note-input{-webkit-user-select:text;user-select:text}
 .task-note-input:focus{border-color:var(--math)}
 .task-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
@@ -169,6 +169,7 @@ const TASKS = [
 
 // 変更があったら新しいものを先頭に追加する（YYYY-MM-DD）
 const CHANGELOG = [
+  { date:"2026-10-17", text:"メモ欄の文字サイズを4px大きくした。" },
   { date:"2026-10-17", text:"メモの閲覧は帯のタップで開閉（未記入のときは無反応）、編集は0.8秒長押しに変更。帯の欄だけスクロールできるように変更。" },
   { date:"2026-10-17", text:"タスク帯の見出しを再タップするとメモを確実に閉じるよう修正。" },
   { date:"2026-10-17", text:"メモ入力時の自動ズームを防ぎ、フォーカス時のスクロールを抑制。" },
