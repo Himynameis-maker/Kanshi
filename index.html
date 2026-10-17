@@ -18,10 +18,11 @@
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);touch-action:manipulation;
   font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",system-ui,sans-serif}
-body{min-height:100vh;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+body{height:100vh;height:100dvh;overflow:hidden;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;padding:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
 button:focus-visible{outline:2px solid var(--math);outline-offset:3px;border-radius:6px}
-.wrap{max-width:560px;margin:0 auto;padding:12px 16px 48px}
+.wrap{max-width:560px;height:100%;margin:0 auto;padding:12px 16px 16px;display:flex;flex-direction:column}
+.top,.nav,.today-link{flex:none}
 
 /* header */
 .top{display:flex;align-items:center;justify-content:space-between;height:44px}
@@ -58,7 +59,8 @@ body.log-open{overflow:hidden}
 .today-link{display:block;margin:2px auto 0;font-size:13px;color:var(--math);height:24px}
 
 /* tasks */
-.list{display:flex;flex-direction:column;gap:12px;margin-top:14px}
+.list{display:flex;flex-direction:column;gap:12px;margin-top:14px;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:24px}
+.list>*{flex:none}
 .task{background:var(--card);border-radius:14px;padding:14px 16px 14px 20px;position:relative;overflow:hidden}
 .task::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c)}
 .task.has-note{background:color-mix(in srgb,#D9534F 7%,var(--card))}
@@ -67,7 +69,6 @@ body.log-open{overflow:hidden}
 .note-mark{position:absolute;right:10px;top:10px;font-size:13px;line-height:1}
 .task-note{display:block;width:100%;min-height:34px;margin-top:9px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font-size:13px;font-weight:400;line-height:1.45;overflow-wrap:anywhere;white-space:pre-wrap;text-align:left}
 .task-note-input{display:block;width:100%;height:34px;margin-top:9px;padding:5px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font:inherit;font-size:16px;font-weight:400;outline:none}
-.task-note.empty{color:var(--sub)}
 .task-note-input{-webkit-user-select:text;user-select:text}
 .task-note-input:focus{border-color:var(--math)}
 .task-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
@@ -168,7 +169,7 @@ const TASKS = [
 
 // 変更があったら新しいものを先頭に追加する（YYYY-MM-DD）
 const CHANGELOG = [
-  { date:"2026-10-17", text:"メモの閲覧は帯のタップで開閉、編集は0.8秒長押しに変更（メモ未記入でも同じ）。" },
+  { date:"2026-10-17", text:"メモの閲覧は帯のタップで開閉（未記入のときは無反応）、編集は0.8秒長押しに変更。帯の欄だけスクロールできるように変更。" },
   { date:"2026-10-17", text:"タスク帯の見出しを再タップするとメモを確実に閉じるよう修正。" },
   { date:"2026-10-17", text:"メモ入力時の自動ズームを防ぎ、フォーカス時のスクロールを抑制。" },
   { date:"2026-10-17", text:"メモが開いているタスク帯を再タップすると折りたためるように変更。" },
@@ -287,10 +288,11 @@ function closeActiveNote(){
   if (activeNote && activeNote.mode === "edit") saveActiveNote();
   else { activeNote = null; noteDraft = ""; }
 }
-// 短いタップ：メモの閲覧を開閉（未記入でも開く）
+// 短いタップ：メモの閲覧を開閉（未記入なら何も起きない）
 function toggleTaskNote(task, date){
   const key = noteKey(task, date);
   if (activeNote && activeNote.key === key) { closeActiveNote(); render(); return; }
+  if (!readNote(key)) return; // 未記入なら無反応
   if (activeNote) saveActiveNote();
   activeNote = {key, mode: "view", taskName: task.name, date: dateKey(date)};
   noteDraft = readNote(key);
@@ -394,8 +396,8 @@ function render(){
       } else {
         const note = document.createElement("button");
         note.type = "button";
-        note.className = "task-note" + (savedNote ? "" : " empty");
-        note.textContent = savedNote || "メモなし（0.8秒長押しで追加）";
+        note.className = "task-note";
+        note.textContent = savedNote;
         note.setAttribute("aria-label", "メモ。タップで閉じる、0.8秒長押しで編集");
         el.appendChild(note);
       }
