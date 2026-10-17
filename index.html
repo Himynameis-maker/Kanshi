@@ -7,14 +7,14 @@
 <style>
 :root{
   --bg:#F5F6F8; --card:#FFFFFF; --ink:#1B2430; --sub:#7A8494; --line:#E3E6EB;
-  --math:#2F5BEA; --eng:#12867A; --phy:#7A4FD6; --sent:#D9822B;
+  --math:#2F5BEA; --eng:#12867A; --phy:#7A4FD6; --sent:#D9822B; --warn:#C4423D;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){ --bg:#14181F; --card:#1D232C; --ink:#E9EDF3; --sub:#8D97A6; --line:#2B3340;
-    --math:#7C9BFF; --eng:#4FC3B3; --phy:#B08CFF; --sent:#F0A860; }
+    --math:#7C9BFF; --eng:#4FC3B3; --phy:#B08CFF; --sent:#F0A860; --warn:#FF8A84; }
 }
 :root[data-theme="dark"]{ --bg:#14181F; --card:#1D232C; --ink:#E9EDF3; --sub:#8D97A6; --line:#2B3340;
-  --math:#7C9BFF; --eng:#4FC3B3; --phy:#B08CFF; --sent:#F0A860; }
+  --math:#7C9BFF; --eng:#4FC3B3; --phy:#B08CFF; --sent:#F0A860; --warn:#FF8A84; }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);touch-action:manipulation;
   font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",system-ui,sans-serif}
@@ -25,10 +25,10 @@ button:focus-visible{outline:2px solid var(--math);outline-offset:3px;border-rad
 .top,.nav,.today-link{flex:none}
 
 /* header */
-.top{display:flex;align-items:center;justify-content:space-between;height:44px}
-.cal-btn{width:44px;height:44px;display:grid;place-items:center;margin-left:-10px;color:var(--sub)}
+.top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:44px}
+.cal-btn{justify-self:start;width:44px;height:44px;display:grid;place-items:center;margin-left:-10px;color:var(--sub)}
 .cal-btn svg{width:24px;height:24px}
-.log-btn{height:36px;padding:0 11px;border:1px solid var(--line);border-radius:10px;font-size:13px;color:var(--sub)}
+.log-btn{justify-self:end;height:36px;padding:0 11px;border:1px solid var(--line);border-radius:10px;font-size:13px;color:var(--sub)}
 .log-btn:active{background:var(--line);color:var(--ink)}
 .log-overlay{position:fixed;inset:0;z-index:30;display:none;justify-content:center;background:var(--bg);padding:calc(env(safe-area-inset-top,0px) + 10px) 14px calc(env(safe-area-inset-bottom,0px) + 10px)}
 .log-overlay.open{display:flex}
@@ -57,6 +57,19 @@ body.log-open{overflow:hidden}
 .date small{font-size:18px;font-weight:500;color:var(--sub);margin-left:6px}
 .meta{margin-top:2px;font-size:14px;color:var(--sub)}
 .today-link{display:block;margin:2px auto 0;font-size:13px;color:var(--math);height:24px}
+
+/* 未解決の問題 */
+.issue-btn{height:34px;padding:0 13px;border-radius:999px;font-size:13px;font-weight:650;white-space:nowrap;color:var(--warn);
+  background:color-mix(in srgb,#D9534F 11%,var(--card));border:1px solid color-mix(in srgb,#D9534F 32%,transparent)}
+.issue-btn:active{background:color-mix(in srgb,#D9534F 22%,var(--card))}
+.issue-item{display:block;width:100%;text-align:left;padding:14px 2px;border-bottom:1px solid var(--line)}
+.issue-item:last-child{border-bottom:0}
+.issue-item:active{background:color-mix(in srgb,var(--line) 60%,transparent)}
+.issue-date{display:flex;align-items:baseline;gap:8px;font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.issue-date small{font-size:12px;font-weight:500;color:var(--sub)}
+.issue-note{display:flex;align-items:baseline;gap:10px;margin-top:6px;font-size:14px;line-height:1.5}
+.issue-task{flex:none;font-size:12px;font-weight:700;color:var(--c,var(--sub))}
+.issue-text{min-width:0;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 
 /* tasks */
 .list{display:flex;flex-direction:column;gap:12px;margin-top:14px;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:24px}
@@ -105,6 +118,7 @@ body.log-open{overflow:hidden}
     <button class="cal-btn" id="calBtn" aria-label="カレンダーを開く">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
     </button>
+    <button class="issue-btn" id="issueBtn" aria-label="未解決の問題の一覧を開く" hidden></button>
     <button class="log-btn" id="logBtn" aria-label="変更履歴を開く">変更履歴</button>
   </div>
 
@@ -130,6 +144,17 @@ body.log-open{overflow:hidden}
     <input class="log-search" id="logSearch" type="search" placeholder="履歴を検索（日付・内容）" aria-label="変更履歴を検索" autocomplete="off">
     <div class="log-count" id="logCount" aria-live="polite"></div>
     <div class="log-list" id="logList"></div>
+  </section>
+</div>
+
+<div class="log-overlay" id="issueOverlay">
+  <section class="log-panel" role="dialog" aria-modal="true" aria-labelledby="issueTitle">
+    <div class="log-head">
+      <div class="log-title" id="issueTitle">未解決の問題</div>
+      <button class="log-close" id="issueClose" aria-label="未解決の問題を閉じる">×</button>
+    </div>
+    <div class="log-count" id="issueCount" aria-live="polite"></div>
+    <div class="log-list" id="issueList"></div>
   </section>
 </div>
 
@@ -169,6 +194,7 @@ const TASKS = [
 
 // 変更があったら新しいものを先頭に追加する（YYYY-MM-DD）
 const CHANGELOG = [
+  { date:"2026-10-17", text:"日付の上に「未解決の問題 N件」ボタンを追加。押すとメモのある日付の一覧が開き、タップでその日に移動できるように変更。" },
   { date:"2026-10-17", text:"メモ欄の文字サイズを4px大きくした。" },
   { date:"2026-10-17", text:"メモの閲覧は帯のタップで開閉（未記入のときは無反応）、編集は0.8秒長押しに変更。帯の欄だけスクロールできるように変更。" },
   { date:"2026-10-17", text:"タスク帯の見出しを再タップするとメモを確実に閉じるよう修正。" },
@@ -347,6 +373,90 @@ document.addEventListener("pointerup", () => {
 });
 document.addEventListener("pointercancel", cancelPress);
 
+/* 未解決の問題：メモのある帯の件数表示と、日付一覧 */
+const NOTE_PREFIX = "kanshi-note:";
+function allNotes(){
+  const out = [];
+  const push = (key, content) => {
+    if (!content || !key || !key.startsWith(NOTE_PREFIX)) return;
+    const rest = key.slice(NOTE_PREFIX.length);
+    const date = rest.slice(0, 10), taskName = rest.slice(11);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !taskName) return;
+    out.push({ date, taskName, content });
+  };
+  if (CLOUD_NOTES_ENABLED) sharedNotes.forEach((v, k) => push(k, v));
+  else {
+    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); push(k, localStorage.getItem(k)); } } catch {}
+  }
+  return out;
+}
+const parseDateKey = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
+function renderIssueButton(){
+  const n = allNotes().length;
+  const btn = $("issueBtn");
+  btn.hidden = n === 0;
+  if (n) btn.textContent = `⚠️ 未解決の問題 ${n}件`;
+  if ($("issueOverlay").classList.contains("open")) renderIssues();
+}
+function renderIssues(){
+  const list = $("issueList");
+  const notes = allNotes();
+  const byDate = new Map();
+  for (const n of notes){ if (!byDate.has(n.date)) byDate.set(n.date, []); byDate.get(n.date).push(n); }
+  const order = n => { const i = TASKS.findIndex(t => t.name === n.taskName); return i < 0 ? 999 : i; };
+  const dates = [...byDate.keys()].sort();
+  $("issueCount").textContent = notes.length ? `${notes.length}件 ・ ${dates.length}日分` : "";
+  list.innerHTML = "";
+  if (!dates.length){
+    const empty = document.createElement("div");
+    empty.className = "log-empty";
+    empty.textContent = "未解決の問題はありません。";
+    list.appendChild(empty);
+    return;
+  }
+  for (const ds of dates){
+    const dt = parseDateKey(ds);
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "issue-item";
+    const tag = same(dt, today) ? "今日" : (same(dt, view) ? "表示中" : "");
+    const head = document.createElement("span");
+    head.className = "issue-date";
+    head.innerHTML = `${dt.getFullYear()}/${dt.getMonth()+1}/${dt.getDate()}(${WD[dt.getDay()]})` + (tag ? `<small>${tag}</small>` : "");
+    row.appendChild(head);
+    for (const n of byDate.get(ds).sort((a,b) => order(a) - order(b))){
+      const task = TASKS.find(t => t.name === n.taskName);
+      const line = document.createElement("span");
+      line.className = "issue-note";
+      if (task) line.style.setProperty("--c", `var(${task.color})`);
+      const name = document.createElement("span");
+      name.className = "issue-task";
+      name.textContent = n.taskName;
+      const text = document.createElement("span");
+      text.className = "issue-text";
+      text.textContent = n.content;
+      line.append(name, text);
+      row.appendChild(line);
+    }
+    row.onclick = () => jumpToDate(ds);
+    list.appendChild(row);
+  }
+}
+function openIssues(){
+  if (activeNote) { saveActiveNote(); render(); }
+  renderIssues();
+  $("issueList").scrollTop = 0;
+  $("issueOverlay").classList.add("open");
+}
+function closeIssues(){ $("issueOverlay").classList.remove("open"); }
+function jumpToDate(ds){
+  if (activeNote) saveActiveNote();
+  view = parseDateKey(ds);
+  closeIssues();
+  render();
+  $("list").scrollTop = 0;
+}
+
 function render(){
   const d = dayIndex(view);
   $("date").innerHTML = `${view.getMonth()+1}/${view.getDate()}<small>(${WD[view.getDay()]})</small>`;
@@ -357,6 +467,7 @@ function render(){
   else meta = `${d+1}日目 / ${lastDay}日`;
   $("meta").textContent = (isToday ? "今日 ・ " : "") + meta;
   $("todayLink").hidden = isToday;
+  renderIssueButton();
 
   const list = $("list"); list.innerHTML = "";
   let any = false;
@@ -485,6 +596,8 @@ function closeLog(){
   document.body.style.width = "";
   window.scrollTo(0, logScrollY);
 }
+$("issueBtn").onclick = openIssues;
+$("issueClose").onclick = closeIssues;
 $("logBtn").onclick = openLog;
 $("logClose").onclick = closeLog;
 $("logSearch").addEventListener("input", () => { renderLog(); $("logList").scrollTop = 0; });
@@ -512,8 +625,8 @@ $("overlay").onclick = e => { if (e.target === $("overlay")) closeCal(); };
 $("mPrev").onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth()-1, 1); renderCal(); };
 $("mNext").onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth()+1, 1); renderCal(); };
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape") { closeCal(); closeLog(); }
-  if (!$("overlay").classList.contains("open")){
+  if (e.key === "Escape") { closeCal(); closeLog(); closeIssues(); }
+  if (!$("overlay").classList.contains("open") && !$("issueOverlay").classList.contains("open")){
     if (e.key === "ArrowLeft") shift(-1);
     if (e.key === "ArrowRight") shift(1);
   }
