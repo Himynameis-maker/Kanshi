@@ -77,6 +77,13 @@ body.log-open{overflow:hidden}
 .task{background:var(--card);border-radius:14px;padding:14px 16px 14px 20px;position:relative;overflow:hidden}
 .task::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c)}
 .task.has-note{background:color-mix(in srgb,#D9534F 7%,var(--card))}
+.task.unchecked{background:color-mix(in srgb,#D9534F 20%,var(--card));box-shadow:inset 0 0 0 1.5px color-mix(in srgb,#D9534F 55%,transparent)}
+.task.unchecked::after{content:"未確認";position:absolute;inset:0;display:grid;place-items:center;font-size:36px;font-weight:800;letter-spacing:.2em;color:var(--warn);opacity:.26;transform:rotate(-6deg);pointer-events:none;z-index:0}
+.task-note-input,.task-note{position:relative;z-index:1}
+.task-check{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;margin-top:4px;font-size:15px;font-weight:600;cursor:pointer;-webkit-user-select:none;user-select:none}
+.task-check input{flex:none;width:24px;height:24px;margin:0;accent-color:var(--c);cursor:pointer}
+.task-check span{min-width:0;overflow-wrap:anywhere}
+.issue-badge{flex:none;padding:0 7px;border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);border-radius:999px;font-size:11px;font-weight:700;line-height:1.6;color:var(--warn)}
 .task{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .task-head{padding-right:22px}
 .note-mark{position:absolute;right:10px;top:10px;font-size:13px;line-height:1}
@@ -173,6 +180,7 @@ body.log-open{overflow:hidden}
 <script>
 /* ============ 設定(ここを編集する) ============ */
 const TIMELINE_START = "2026-10-17"; // 全体の日数表示の基準日 (YYYY-MM-DD)
+const CHECK_START = "2026-10-17"; // この日以降の予定が、未チェックのまま翌日になると「未確認」になる (YYYY-MM-DD)
 
 // segments: 順番にこなす教材。total は総量。
 // days: 全体を何日で一周するか(量を均等割り) / perDay: 1日の固定量(余りは最終日)
@@ -194,6 +202,9 @@ const TASKS = [
 
 // 変更があったら新しいものを先頭に追加する（YYYY-MM-DD）
 const CHANGELOG = [
+  { date:"2026-10-17", text:"共有メモの再読み込みを30秒ごとから5分ごとに変更し、タブに戻ったときにも読み込むようにした。" },
+  { date:"2026-10-17", text:"チェックの状態を共有メモと同じD1に保存し、端末間で共有するように変更。" },
+  { date:"2026-10-17", text:"長押しの編集欄にチェックボックスを追加。未チェックのまま翌日になった帯は赤くなり「未確認」と薄く表示され、未解決の問題に数えられる。" },
   { date:"2026-10-17", text:"日付の上に「未解決の問題 N件」ボタンを追加。押すとメモのある日付の一覧が開き、タップでその日に移動できるように変更。" },
   { date:"2026-10-17", text:"メモ欄の文字サイズを4px大きくした。" },
   { date:"2026-10-17", text:"メモの閲覧は帯のタップで開閉（未記入のときは無反応）、編集は0.8秒長押しに変更。帯の欄だけスクロールできるように変更。" },
@@ -269,11 +280,19 @@ async function loadCloudNotes(showError = true){
     const response = await fetch("/api/notes", { cache: "no-store" });
     if (!response.ok) throw new Error(`共有メモの読み込みに失敗しました (${response.status})`);
     const rows = await response.json();
-    const fresh = new Map(rows.map(row => [`kanshi-note:${row.note_date}:${row.task_name}`, row.content || ""]));
+    const fresh = new Map(), freshChecks = new Set();
+    for (const row of rows){
+      const name = row.task_name || "";
+      if (name.startsWith(CHECK_TASK_PREFIX)) freshChecks.add(`kanshi-check:${row.note_date}:${name.slice(CHECK_TASK_PREFIX.length)}`);
+      else fresh.set(`kanshi-note:${row.note_date}:${name}`, row.content || "");
+    }
     // 編集中の入力を外部更新で上書きしない
     if (activeNote?.mode === "edit") fresh.set(activeNote.key, sharedNotes.get(activeNote.key) || "");
     sharedNotes.clear();
     for (const [key, value] of fresh) sharedNotes.set(key, value);
+    sharedChecks.clear();
+    for (const k of freshChecks) sharedChecks.add(k);
+    for (const [k, on] of pendingChecks) { if (on) sharedChecks.add(k); else sharedChecks.delete(k); }
     cloudNotesLoaded = true;
     if (!activeNote || activeNote.mode !== "edit") render();
   } catch (error) {
@@ -348,6 +367,35 @@ function beginNoteEdit(key){
   if (input) { input.focus({ preventScroll: true }); input.setSelectionRange(input.value.length, input.value.length); }
 }
 
+/* 確認チェック：未チェックのまま翌日になると「未確認」（共有メモと同じD1に、科目名の頭に __check__: を付けた行として保存） */
+const CHECK_TASK_PREFIX = "__check__:";
+const sharedChecks = new Set();
+const pendingChecks = new Map();
+const [CKY,CKM,CKD] = CHECK_START.split("-").map(Number);
+const checkStartDate = new Date(CKY, CKM-1, CKD);
+const checkKey = (task, d) => `kanshi-check:${dateKey(d)}:${task.name}`;
+const checkedMem = new Set();
+const isChecked = (task, d) => {
+  const k = checkKey(task, d);
+  if (CLOUD_NOTES_ENABLED) return sharedChecks.has(k);
+  if (checkedMem.has(k)) return true;
+  try { return localStorage.getItem(k) === "1"; } catch { return false; }
+};
+function setChecked(task, d, on){
+  const k = checkKey(task, d);
+  if (CLOUD_NOTES_ENABLED){
+    if (on) sharedChecks.add(k); else sharedChecks.delete(k);
+    pendingChecks.set(k, on);
+    syncCloudNote(k, on ? "1" : "", dateKey(d), CHECK_TASK_PREFIX + task.name)
+      .finally(() => { if (pendingChecks.get(k) === on) pendingChecks.delete(k); });
+    return;
+  }
+  if (on) checkedMem.add(k); else checkedMem.delete(k);
+  try { if (on) localStorage.setItem(k, "1"); else localStorage.removeItem(k); } catch {}
+}
+const checksReady = () => !CLOUD_NOTES_ENABLED || cloudNotesLoaded;
+const isOverdue = (task, d) => checksReady() && utc(d) >= utc(checkStartDate) && utc(d) < utc(today) && !isChecked(task, d);
+
 /* 帯：タップで閲覧の開閉、0.8秒長押しで編集 */
 const NOTE_PRESS_MS = 800;
 const NOTE_MOVE_TOL = 10;
@@ -355,7 +403,7 @@ let press = null;
 function cancelPress(){ if (press) { clearTimeout(press.timer); press = null; } }
 function startPress(e, task, date){
   if (e.pointerType === "mouse" && e.button !== 0) return;
-  if (e.target.closest(".task-note-input")) return;
+  if (e.target.closest(".task-note-input, .task-check")) return;
   cancelPress();
   const p = { task, date, x: e.clientX, y: e.clientY, fired: false };
   p.timer = setTimeout(() => { p.fired = true; editTaskNote(task, date); }, NOTE_PRESS_MS);
@@ -390,9 +438,25 @@ function allNotes(){
   }
   return out;
 }
+function allIssues(){
+  const map = new Map();
+  for (const n of allNotes()) map.set(n.date + "\n" + n.taskName, { ...n, overdue:false });
+  if (!checksReady()) return [...map.values()];
+  for (let dt = checkStartDate; utc(dt) < utc(today); dt = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()+1)){
+    const idx = dayIndex(dt);
+    if (idx >= lastDay) break;
+    for (const t of TASKS){
+      if (!linesOf(t, idx).length || isChecked(t, dt)) continue;
+      const key = dateKey(dt) + "\n" + t.name, cur = map.get(key);
+      if (cur) cur.overdue = true;
+      else map.set(key, { date:dateKey(dt), taskName:t.name, content:"", overdue:true });
+    }
+  }
+  return [...map.values()];
+}
 const parseDateKey = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
 function renderIssueButton(){
-  const n = allNotes().length;
+  const n = allIssues().length;
   const btn = $("issueBtn");
   btn.hidden = n === 0;
   if (n) btn.textContent = `⚠️ 未解決の問題 ${n}件`;
@@ -400,7 +464,7 @@ function renderIssueButton(){
 }
 function renderIssues(){
   const list = $("issueList");
-  const notes = allNotes();
+  const notes = allIssues();
   const byDate = new Map();
   for (const n of notes){ if (!byDate.has(n.date)) byDate.set(n.date, []); byDate.get(n.date).push(n); }
   const order = n => { const i = TASKS.findIndex(t => t.name === n.taskName); return i < 0 ? 999 : i; };
@@ -435,7 +499,9 @@ function renderIssues(){
       const text = document.createElement("span");
       text.className = "issue-text";
       text.textContent = n.content;
-      line.append(name, text);
+      line.append(name);
+      if (n.overdue){ const b = document.createElement("span"); b.className = "issue-badge"; b.textContent = "未確認"; line.append(b); }
+      if (n.content) line.append(text);
       row.appendChild(line);
     }
     row.onclick = () => jumpToDate(ds);
@@ -480,7 +546,7 @@ function render(){
     const noteId = noteKey(t, view);
     const savedNote = readNote(noteId);
     const isActiveNote = activeNote && activeNote.key === noteId;
-    el.className = "task" + (savedNote ? " has-note" : "");
+    el.className = "task" + (savedNote ? " has-note" : "") + (isOverdue(t, view) ? " unchecked" : "");
     el.style.setProperty("--c", `var(${t.color})`);
     el.innerHTML = `<div class="task-head"><span class="task-name">${t.name}</span><span class="task-prog">${d-offOf(t)+1} / ${n}日目</span></div>` +
       (savedNote ? `<span class="note-mark" aria-hidden="true">⚠️</span>` : "") +
@@ -505,6 +571,21 @@ function render(){
         });
         input.addEventListener("click", e => e.stopPropagation());
         el.appendChild(input);
+        const cd = view;
+        const chk = document.createElement("label");
+        chk.className = "task-check";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = isChecked(t, cd);
+        cb.addEventListener("change", () => {
+          setChecked(t, cd, cb.checked);
+          el.classList.toggle("unchecked", isOverdue(t, cd));
+          renderIssueButton();
+        });
+        const lab = document.createElement("span");
+        lab.textContent = "確認済み";
+        chk.append(cb, lab);
+        el.appendChild(chk);
       } else {
         const note = document.createElement("button");
         note.type = "button";
@@ -646,8 +727,17 @@ setInterval(tick, 30000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
 
 if (CLOUD_NOTES_ENABLED) {
+  // 読み込み回数の節約：5分ごと＋タブに戻ったとき（前回から30秒以上あいていれば）
+  const POLL_MS = 5 * 60 * 1000, FOCUS_MIN_MS = 30000;
+  let lastLoad = Date.now();
+  const refreshNotes = minGap => {
+    if (document.hidden || Date.now() - lastLoad < minGap) return;
+    lastLoad = Date.now();
+    loadCloudNotes(false);
+  };
   loadCloudNotes().finally(() => render());
-  setInterval(() => { if (!document.hidden) loadCloudNotes(false); }, 30000);
+  setInterval(() => refreshNotes(0), POLL_MS);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshNotes(FOCUS_MIN_MS); });
 } else {
   render();
 }
