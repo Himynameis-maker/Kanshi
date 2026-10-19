@@ -186,22 +186,23 @@ const CHECK_START = "2026-10-16"; // この日以降の予定が、未チェッ�
 // days: 全体を何日で一周するか(量を均等割り) / perDay: 1日の固定量(余りは最終日)
 // start: そのタスクの開始日(必須) / skip: 開始時点で終わっている量
 const TASKS = [
-  { name:"数学", color:"--math", days:60, start:"2026-10-15",
+  { name:"数学", color:"--math", perDay:10, start:"2026-10-20", skip:111,
     segments:[
       { label:"数IA",  total:610, unit:"ページ" },
       { label:"数IIB", total:931, unit:"ページ" },
       { label:"数III", total:719, unit:"ページ" } ] },
-  { name:"英文法", color:"--eng", days:20, start:"2026-10-18", skip:53,
+  { name:"英文法", color:"--eng", perDay:10, start:"2026-10-20", skip:50,
     segments:[ { label:"英文法", total:219, unit:"ページ" } ] },
-  { name:"最短物理", color:"--phy", days:15, start:"2026-10-17", skip:22,
+  { name:"最短物理", color:"--phy", perDay:10, start:"2026-10-20", skip:34,
     segments:[ { label:"最短物理", total:244, unit:"ページ" } ] },
-  { name:"英文英単語Z", color:"--sent", perDay:3, start:"2026-10-15",
+  { name:"英文英単語Z", color:"--sent", perDay:3, start:"2026-10-20", skip:9,
     segments:[ { label:"英文英単語Z", total:70, unit:"", extra:"＋ 付随する英単語" } ] }
 ];
 /* ============================================== */
 
 // 変更があったら新しいものを先頭に追加する（YYYY-MM-DD）
 const CHANGELOG = [
+  { date:"2026-10-20", text:"10/20を新しい開始日に変更。数学111p・英文法50p・物理34p・英単語9まで完了扱いにし、1日10ページ（英単語は3）に変更。" },
   { date:"2026-10-17", text:"英文法を53ページまで完了扱いに変更。10/18開始・20日間（11/6終了予定）に調整。" },
   { date:"2026-10-17", text:"未確認の対象を10/16以降の予定に変更。" },
   { date:"2026-10-17", text:"共有メモの再読み込みを30秒ごとから5分ごとに変更し、タブに戻ったときにも読み込むようにした。" },
